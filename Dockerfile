@@ -5,9 +5,14 @@ WORKDIR /app
 
 COPY requirements.txt requirements.txt
 
-RUN apt-get update && apt-get upgrade -y  && \ 
-	apt-get install -y \
+
+RUN	sed -i -e's/ main/ main contrib non-free/g' /etc/apt/sources.list \
+	&& apt-get -q update                                              \
+	&& apt-get -qy dist-upgrade                                       \
+	&& apt-get update && apt-get upgrade -y  \ 
+	&& apt-get install -y \
 	ffmpeg \
+	unrar \
 	#python3 \
 	#python3-setuptools \
 	python3-pip && \

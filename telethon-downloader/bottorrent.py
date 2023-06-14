@@ -23,6 +23,7 @@ import time
 import asyncio
 import threading
 import zipfile
+import rarfile
 
 import logging
 import configparser
@@ -68,7 +69,6 @@ create_directory(completed_path)
 
 FOLDER_GROUP = ''
 
-
 async def tg_send_message(msg):
     if AUTHORIZED_USER: await client.send_message(usuarios[0], msg)
     return True
@@ -80,19 +80,76 @@ async def tg_send_file(CID,file,name=''):
     #await client.send_message(6537360, file)
 
 # Printing download progress
-async def callback(current, total, file_path, file_name, message,_download_path=''):
-    value = (current / total) * 100
-    format_float = "{:.2f}".format(value)
-    int_value = int(float(format_float) // 1)
-    try:
-        if ((int_value != 100 ) and (int_value % 20 == 0)):
+async def callback(current, total, file_path, file_name, message, _download_path=''):
+    global cache_last_time
+    global cache_interval
+    cache_current_time = time.time()
+     # Check if enough time has passed since the last execution
+    if cache_current_time - cache_last_time >= cache_interval:
+        value = (current / total) * 100
+        format_float = "{:.2f}".format(value)
+        try:
             await message.edit(f'Downloading {file_name} ... {format_float}% \ndownload in:\n{_download_path}')
-    finally:
-        current
-
-
+        finally:
+            current
+        cache_last_time = cache_current_time
+async def unrar(_path, final_path, file_name, end_time, message, pattern_part_rar):
+    try:
+        if rarfile.is_rarfile(final_path):
+            mensaje = 'Is RAR, check if it is partX.rar %s [%s] => [%s]' % (end_time, file_name, final_path)
+            logger.info(mensaje)
+            if re.search(pattern_part_rar, file_name):
+                mensaje = 'Is RAR part! trying to decompress...'
+                logger.info(mensaje)
+                final_path_part1_rar = re.sub(pattern_part_rar, "part1.rar", final_path)
+                # Open the multi-part RAR archive
+                rar_file = rarfile.RarFile(final_path_part1_rar)
+                mensaje = '[%s] Decompressing... %s' % (final_path_part1_rar, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime()))
+                logger.info(mensaje)
+                await message.edit(mensaje)
+                # Extract the contents of the archive
+                rar_file.extractall(_path)
+                mensaje = '[%s] Done UnRAR %s' % (final_path_part1_rar, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime()))
+                logger.info(mensaje)
+                await message.edit(mensaje)
+                # Close the archive
+                rar_file.close() 
+                return True
+            else:
+                rar_file = rarfile.RarFile(final_path)
+                mensaje = '[%s] Decompressing... %s' % (final_path_part1_rar, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime()))
+                logger.info(mensaje)
+                await message.edit(mensaje)                
+                # Extract the contents of the archive
+                rar_file.extractall(_path)
+                mensaje = '[%s] Done UnRAR %s' % (final_path_part1_rar, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime()))
+                logger.info(mensaje)
+                await message.edit(mensaje)                
+                # Close the archive
+                rar_file.close()  
+                return True
+    except Exception as e:
+        logger.critical(e)
+        logger.info('[EXCEPTION]: %s' % (str(e)))
+        logger.info('[%s] EXCEPTION RAR %s' % (file_name, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime())))
+        return False
+async def delete_rar(_path, file_name, pattern_part_rar):
+    logger.info('MAINTENANCE - Delete RAR')
+    pattern_delete_path = re.sub(pattern_part_rar, "", file_name)
+    logger.info(f'Pattern RAR: {pattern_delete_path}')
+    files_complete = os.listdir(_path)                
+    for file_complete in files_complete:
+        if pattern_delete_path in file_complete and file_complete.endswith(".rar"):
+            file_path_delete = os.path.join(_path, file_complete)  # Ruta completa del archivo
+            logger.info(f'DELETE file: {file_path_delete}')
+            os.remove(file_path_delete) 
 async def worker(name):
     while True:
+        # Variables for control calls to progress bar
+        global cache_last_time
+        cache_last_time = time.time()
+        global cache_interval
+        cache_interval = 1  # 1 second
 
         queue_item = await queue.get()
         update = queue_item[0]
@@ -150,7 +207,7 @@ async def worker(name):
         try:
             loop = asyncio.get_event_loop()
             if (TG_PROGRESS_DOWNLOAD == True or TG_PROGRESS_DOWNLOAD == 'True' ):
-                task = loop.create_task(client.download_media(update.message, file_path, progress_callback=lambda x,y: callback(x,y,file_path,file_name,message,_download_path)))
+                task = loop.create_task(client.download_media(update.message, file_path, progress_callback=lambda x,y: callback(x,y,file_path,file_name,message, _download_path)))
             else:
                 task = loop.create_task(client.download_media(update.message, file_path))
             download_result = await asyncio.wait_for(task, timeout = maximum_seconds_per_download)
@@ -169,7 +226,7 @@ async def worker(name):
             logger.info("RENAME/MOVE [%s] [%s]" % (download_result, final_path) )
             #create_directory(completed_path)
             shutil.move(download_result, final_path)
-            os.chmod(final_path, 0o666)
+            os.chmod(final_path, 0o777)
             if TG_UNZIP_TORRENTS:
                 if zipfile.is_zipfile(final_path):
                     with zipfile.ZipFile(final_path, 'r') as zipObj:
@@ -177,7 +234,11 @@ async def worker(name):
                             if fileName.endswith('.torrent'):
                                 zipObj.extract(fileName, download_path_torrent)
                                 logger.info("UNZIP TORRENTS [%s] to [%s]" % (fileName, download_path_torrent) )
-
+            # UNRAR
+            pattern_part_rar = r"part\d{1}\.rar"
+            unrar_result = await unrar(_path, final_path, file_name, end_time, message, pattern_part_rar)
+            if unrar_result:
+                await delete_rar(_path, file_name, pattern_part_rar)
 
             ######
             mensaje = 'DOWNLOAD FINISHED %s [%s] => [%s]' % (end_time, file_name, final_path)
