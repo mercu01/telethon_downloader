@@ -90,56 +90,140 @@ async def callback(current, total, file_path, file_name, message, _download_path
         format_float = "{:.2f}".format(value)
         try:
             await message.edit(f'Downloading {file_name} ... {format_float}% \ndownload in:\n{_download_path}')
+        except Exception as e:
+            logger.critical(e)
+            logger.info('[EXCEPTION Printing download progress]: %s' % (str(e)))
+            pass
         finally:
             current
         cache_last_time = cache_current_time
-async def unrar(_path, final_path, file_name, end_time, message, pattern_part_rar):
+async def decide_format_compresed_firts_file(final_path, file_name, pattern_part, template_part):
+    match = re.search(pattern_part, file_name)
+    if match:
+        # Get the matched part of the text
+        matched_part = match.group(0)
+        # Find the digits in the matched part
+        matched_digits = re.findall(r"\d+", matched_part)
+        digits_len = len(matched_digits[0])
+        part_1_rar = ''
+        if digits_len==4:
+            part_1_rar = template_part.replace("XXXX", "0001")
+        elif digits_len==3:
+            part_1_rar = template_part.replace("XXXX", "001")
+        elif digits_len==2:
+            part_1_rar = template_part.replace("XXXX", "01")
+        else:
+            part_1_rar = template_part.replace("XXXX", "1")
+        final_path_part1_compressed = re.sub(pattern_part, part_1_rar, final_path)
+        mensaje = f'Is part file! decide: {final_path_part1_compressed}'
+        logger.info(mensaje)
+        return final_path_part1_compressed
+    else:
+        mensaje = f'Is complete compressed file! decide: {final_path}'
+        logger.info(mensaje)
+        return final_path
+async def unrar(_path, final_path, file_name, end_time, message, pattern_part, template_part, update):
     try:
-        if rarfile.is_rarfile(final_path):
-            mensaje = 'Is RAR, check if it is partX.rar %s [%s] => [%s]' % (end_time, file_name, final_path)
-            logger.info(mensaje)
-            if re.search(pattern_part_rar, file_name):
-                mensaje = 'Is RAR part! trying to decompress...'
-                logger.info(mensaje)
-                final_path_part1_rar = re.sub(pattern_part_rar, "part1.rar", final_path)
-                # Open the multi-part RAR archive
-                rar_file = rarfile.RarFile(final_path_part1_rar)
-                mensaje = '[%s] Decompressing... %s' % (final_path_part1_rar, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime()))
-                logger.info(mensaje)
-                await message.edit(mensaje)
-                # Extract the contents of the archive
-                rar_file.extractall(_path)
-                mensaje = '[%s] Done UnRAR %s' % (final_path_part1_rar, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime()))
-                logger.info(mensaje)
-                await message.edit(mensaje)
-                # Close the archive
-                rar_file.close() 
-                return True
-            else:
-                rar_file = rarfile.RarFile(final_path)
-                mensaje = '[%s] Decompressing... %s' % (final_path_part1_rar, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime()))
-                logger.info(mensaje)
-                await message.edit(mensaje)                
-                # Extract the contents of the archive
-                rar_file.extractall(_path)
-                mensaje = '[%s] Done UnRAR %s' % (final_path_part1_rar, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime()))
-                logger.info(mensaje)
-                await message.edit(mensaje)                
-                # Close the archive
-                rar_file.close()  
-                return True
+        mensaje = 'Is RAR compressed file %s [%s] => [%s]' % (end_time, file_name, final_path)
+        logger.info(mensaje)
+        path_compressed_file = await decide_format_compresed_firts_file(final_path, file_name, pattern_part, template_part)
+        
+        compressed_file = rarfile.RarFile(path_compressed_file)
+        end_time_short = time.strftime('%H:%M', time.localtime())
+        mensaje = 'Decompressing... %s' % (end_time_short)
+        logger.info(mensaje)
+        await message.edit(mensaje)
+        # Extract the contents of the archive
+        compressed_file.extractall(_path)
+        end_time_short = time.strftime('%H:%M', time.localtime())
+        mensaje = 'Done UNRAR file: '
+        files_compressed = compressed_file.namelist()
+        # Print rar files
+        for file_compressed in files_compressed:
+            mensaje += '\n' + file_compressed
+        logger.info(mensaje)
+        await update.reply(mensaje)
+        # Close the archive
+        compressed_file.close() 
+        return True
     except Exception as e:
         logger.critical(e)
         logger.info('[EXCEPTION]: %s' % (str(e)))
         logger.info('[%s] EXCEPTION RAR %s' % (file_name, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime())))
         return False
-async def delete_rar(_path, file_name, pattern_part_rar):
-    logger.info('MAINTENANCE - Delete RAR')
-    pattern_delete_path = re.sub(pattern_part_rar, "", file_name)
-    logger.info(f'Pattern RAR: {pattern_delete_path}')
+async def unzip(_path, final_path, file_name, end_time, message, pattern_part, template_part, update):
+    try:
+        mensaje = 'Is ZIP compressed file %s [%s] => [%s]' % (end_time, file_name, final_path)
+        logger.info(mensaje)
+        path_compressed_file = await decide_format_compresed_firts_file(final_path, file_name, pattern_part, template_part)
+        end_time_short = time.strftime('%H:%M', time.localtime())
+        mensaje = 'Validate compressed file... %s [%s]' % (end_time_short, path_compressed_file)
+        logger.info(mensaje)
+        await message.edit(mensaje)
+        cmd = f'7zz t {path_compressed_file}'
+        logger.info(cmd)
+        proc = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE)
+
+        stdout, stderr = await proc.communicate()
+
+        end_time_short = time.strftime('%H:%M', time.localtime())
+        if proc.returncode == 0:
+            mensaje = 'VALIDATION OK %s [%s]' % (end_time_short, path_compressed_file)
+            mensaje = mensaje + '\n' + stdout.decode()
+            logger.info(mensaje)
+            await message.edit(mensaje)
+
+            end_time_short = time.strftime('%H:%M', time.localtime())
+            mensaje = 'Decompressing... %s' % (end_time_short)
+            logger.info(mensaje)
+            await message.edit(mensaje)
+            # Extract the contents of the archive
+            cmd = f'cd {_path} && 7zz x {path_compressed_file}'
+            logger.info(cmd)
+            proc = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE)
+
+            stdout, stderr = await proc.communicate()
+            end_time_short = time.strftime('%H:%M', time.localtime())
+           
+            if proc.returncode == 0:
+                mensaje = 'Decompressing OK %s [%s]' % (end_time_short, path_compressed_file)
+                mensaje = mensaje + '\n' + stdout.decode()
+                logger.info(mensaje)
+                await message.edit(mensaje)
+                time.sleep(5)
+                return True
+            else:
+                mensaje = 'Decompressing KO %s [%s]' % (end_time_short, path_compressed_file)
+                mensaje = mensaje + '\n' + stderr.decode()
+                logger.info(mensaje)
+                await message.edit(mensaje)
+                time.sleep(5)
+                return False
+        else: 
+            mensaje = 'VALIDATION KO %s [%s]' % (end_time_short, path_compressed_file)
+            mensaje = mensaje + '\n' + stderr.decode()
+            logger.info(mensaje)
+            await message.edit(mensaje)
+            return False
+    except Exception as e:
+        logger.critical(e)
+        logger.info('[EXCEPTION]: %s' % (str(e)))
+        logger.info('[%s] EXCEPTION ZIP %s' % (file_name, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime())))
+        return False
+
+async def delete_compress_files(_path, file_name, pattern_part):
+    logger.info('MAINTENANCE - Delete compress files')
+    pattern_delete_path = re.sub(pattern_part, "", file_name)
+    logger.info(f'Pattern: {pattern_delete_path}')
     files_complete = os.listdir(_path)                
     for file_complete in files_complete:
-        if pattern_delete_path in file_complete and file_complete.endswith(".rar"):
+        if pattern_delete_path in file_complete and re.search(pattern_part, file_complete) :
             file_path_delete = os.path.join(_path, file_complete)  # Ruta completa del archivo
             logger.info(f'DELETE file: {file_path_delete}')
             os.remove(file_path_delete) 
@@ -149,7 +233,7 @@ async def worker(name):
         global cache_last_time
         cache_last_time = time.time()
         global cache_interval
-        cache_interval = 1  # 1 second
+        cache_interval = TG_MAX_PARALLEL  # 1 second X parallel proccess, Telegram limit 1 message every second
 
         queue_item = await queue.get()
         update = queue_item[0]
@@ -235,11 +319,26 @@ async def worker(name):
                                 zipObj.extract(fileName, download_path_torrent)
                                 logger.info("UNZIP TORRENTS [%s] to [%s]" % (fileName, download_path_torrent) )
             # UNRAR
-            pattern_part_rar = r"part\d{1}\.rar"
-            unrar_result = await unrar(_path, final_path, file_name, end_time, message, pattern_part_rar)
-            if unrar_result:
-                await delete_rar(_path, file_name, pattern_part_rar)
-
+            logger.info('rar')
+            pattern_part = r"part\d{1,4}\.rar"
+            template_part = r"partXXXX.rar"
+            if rarfile.is_rarfile(final_path):
+                unrar_result = await unrar(_path, final_path, file_name, end_time, message, pattern_part, template_part, update)
+                if unrar_result:
+                    await delete_compress_files(_path, file_name, pattern_part)
+            # ZIP
+            logger.info('zip')
+            pattern_part = r"zip\.\d{1,4}"
+            pattern_complete = r"\.zip"
+            template_part = r"zip.XXXX"
+            if re.search(pattern_part, file_name) or re.search(pattern_complete, file_name):
+                logger.info('zip1')
+                unzip_result = await unzip(_path, final_path, file_name, end_time, message, pattern_part, template_part, update)
+                logger.info('zip2')
+                if unzip_result:
+                    logger.info('zip3')
+                    await delete_compress_files(_path, file_name, pattern_part)
+                 
             ######
             mensaje = 'DOWNLOAD FINISHED %s [%s] => [%s]' % (end_time, file_name, final_path)
             logger.info(mensaje)
