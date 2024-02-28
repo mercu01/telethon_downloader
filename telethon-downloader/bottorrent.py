@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-VERSION = "VERSION 3.1.11"
+VERSION = "VERSION 3.1.11 - Mercu beta 2.0"
 HELP = """
 /help		: This Screen
 /version	: Version  
@@ -27,6 +27,7 @@ import rarfile
 
 import logging
 import configparser
+import traceback
 
 # Imports Telethon
 from telethon import TelegramClient, events
@@ -38,7 +39,7 @@ from env import *
 from logger import logger
 from utils import splash, create_directory, getDownloadPath, getUsers, split_input, config_file
 from youtube import youtube_download
-
+from createtorrent import CreateTorrentBatchQThread
 
 session = SESSION
 
@@ -128,23 +129,50 @@ async def unrar(_path, final_path, file_name, end_time, message, pattern_part, t
         logger.info(mensaje)
         path_compressed_file = await decide_format_compresed_firts_file(final_path, file_name, pattern_part, template_part)
         
-        compressed_file = rarfile.RarFile(path_compressed_file)
+        cmd = f'cd {_path} && unrar x -o+ \'{os.path.basename(path_compressed_file)}\''
+        logger.info(cmd)
         end_time_short = time.strftime('%H:%M', time.localtime())
         mensaje = 'Decompressing... %s' % (end_time_short)
-        logger.info(mensaje)
-        await message.edit(mensaje)
-        # Extract the contents of the archive
-        compressed_file.extractall(_path)
-        end_time_short = time.strftime('%H:%M', time.localtime())
-        mensaje = 'Done UNRAR file: '
+        compressed_file = rarfile.RarFile(path_compressed_file)
         files_compressed = compressed_file.namelist()
         # Print rar files
         for file_compressed in files_compressed:
             mensaje += '\n' + file_compressed
-        logger.info(mensaje)
-        await update.reply(mensaje)
         # Close the archive
         compressed_file.close() 
+        logger.info(mensaje)
+        await message.edit(mensaje)
+        proc = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE)
+        # end_time_short = time.strftime('%H:%M', time.localtime())
+        # mensaje = 'Decompressing... %s' % (end_time_short)
+        # logger.info(mensaje)
+        # await message.edit(mensaje)
+        # # Extract the contents of the archive
+        # compressed_file.extractall(_path)
+        stdout, stderr = await proc.communicate()
+        end_time_short = time.strftime('%H:%M', time.localtime())
+        
+        if proc.returncode == 0:
+            mensaje = 'Decompressing OK %s [%s]' % (end_time_short, path_compressed_file)
+            mensaje = mensaje + '\n' + stdout.decode()
+            logger.info(mensaje)
+            await message.edit(mensaje)
+            time.sleep(5)
+            return True
+        else:
+            mensaje = 'Decompressing KO %s [%s]' % (end_time_short, path_compressed_file)
+            mensaje = mensaje + '\n' + stderr.decode()
+            logger.info(mensaje)
+            await message.edit(mensaje)
+            time.sleep(5)
+            return False
+        end_time_short = time.strftime('%H:%M', time.localtime())
+        mensaje = 'Done UNRAR file: '
+        
+        await update.reply(mensaje)
         return True
     except Exception as e:
         logger.critical(e)
@@ -412,7 +440,124 @@ async def handler(update):
                 logger.info('me :[%s]' % (CID))
             else: 
                 time.sleep(2)
-                if '/folder' in update.message.message:
+                if update.message.message.startswith("/t"):
+                    command = update.message.message.replace("/t", "")
+                    commandPartes = command.split(",")
+                    # Asignar las partes a variables
+                    pathSerie = '/media/mercu/myUsb14T/Series/'+commandPartes[0].strip()
+                    nombreCastellano = commandPartes[1].strip()
+                    excludeEdit = ["*.mp3","tvshow.nfo"]
+                    save_dir = "/media/mercu/myUsbRAID/Torrent/Created"
+                    watch_transmission_dir = "/media/mercu/myUsbRAID/Torrent/WatchTransmission"
+                    trackers = """http://tracker.files.fm:6969/announce
+
+http://tracker.opentrackr.org:1337/announce
+
+https://tracker.renfei.net:443/announce
+
+https://www.peckservers.com:9443/announce
+
+http://open.acgnxtracker.com:80/announce
+
+udp://odd-hd.fr:6969/announce
+
+udp://tracker2.dler.com:80/announce
+
+udp://tracker.torrent.eu.org:451/announce
+
+udp://tracker.opentrackr.org:1337/announce
+
+udp://open.stealth.si:80/announce
+
+udp://93.158.213.92:1337/announce
+
+udp://208.83.20.20:6969/announce
+
+udp://185.102.219.163:6969/announce
+
+udp://102.223.180.235:6969/announce
+
+udp://23.134.88.6:1337/announce
+
+udp://193.189.100.188:6969/announce
+
+udp://opentracker.i2p.rocks:6969/announce
+
+udp://open.demonii.com:1337/announce
+
+http://tracker.openbittorrent.com/announce
+
+udp://tracker.openbittorrent.com:6969/announce
+
+udp://open.stealth.si/announce
+
+udp://tracker.torrent.eu.org:451/announce
+
+udp://exodus.desync.com:6969/announce
+
+udp://uploads.gamecoast.net:6969/announce
+
+udp://tracker.theoks.net:6969/announce
+
+udp://tracker.ccp.ovh:6969/announce
+
+udp://tracker.bittor.pw:1337/announce
+
+udp://tracker.4.babico.name.tr:3131/announce
+
+udp://thouvenin.cloud:6969/announce
+
+udp://sanincode.com:6969/announce
+
+udp://p4p.arenabg.com:1337/announce
+
+https://tracker.bt4g.com/announce
+
+http://tracker.files.fm:6969/announce
+
+https://www.peckservers.com:9443/announce
+
+udp://tracker2.dler.com/announce
+
+udp://tracker.breizh.pm:6969/announce
+
+udp://93.158.213.92:1337/announce
+
+udp://185.102.219.163:6969/announce
+
+udp://102.223.180.235:6969/announce
+
+udp://23.134.88.6:1337/announce
+
+udp://193.189.100.188:6969/announce
+
+udp://185.243.218.213/announce"""
+                    message = await update.reply('creating torrents...')
+                    createdTorrents = await CreateTorrentBatchQThread(
+                        update,
+                        path=pathSerie,
+                        exclude=excludeEdit,
+                        save_dir=save_dir,
+                        trackers=trackers.strip().split(),
+                        web_seeds="",
+                        private=False,
+                        source="",
+                        comment=nombreCastellano,
+                        include_md5=True,
+                        batchModeCheckBox=True
+                    )
+                    message = await update.reply('Sending to transmission')
+                    for fileNamePath in createdTorrents:
+                        shutil.copy(os.path.join(save_dir, fileNamePath), os.path.join(watch_transmission_dir, fileNamePath))
+
+                    await tg_send_message("---Resume torrents---")
+                    #await update.reply("---Resume torrents---")
+                    for fileNamePath in createdTorrents:
+                        await tg_send_message(fileNamePath)
+                        #await update.reply(fileNamePath)
+                        await tg_send_file(CID,os.path.join(save_dir, fileNamePath))
+                    
+                elif '/folder' in update.message.message:
                     folder = update.message.message
                     FOLDER_GROUP = update.message.date
                     temp_completed_path  = os.path.join(TG_DOWNLOAD_PATH,'completed',folder.replace('/folder ','')) # SI VIENE EL TEXTO '/folder NAME_FOLDER' ESTE CREARÁ UNA CARPETA Y METERÁ ADENTRO TODOS LOS ARCHIVOS A CONTINUACION 
@@ -451,8 +596,8 @@ async def handler(update):
             logger.info('UNAUTHORIZED USER: %s ', CID)
             message = await update.reply('UNAUTHORIZED USER: %s \n add this ID to TG_AUTHORIZED_USER_ID' % CID)
     except Exception as e:
-        message = await update.reply('ERROR: ' + str(e))
-        logger.info('EXCEPTION USER: %s ', str(e))
+        message = await update.reply('ERROR: ' + str(e) + "\n" + str(traceback.print_exc()))
+        logger.info('EXCEPTION USER: %s %s', str(e), str(traceback.print_exc()))
 
 
 
@@ -472,9 +617,14 @@ if __name__ == '__main__':
         # Arrancamos bot con token
         client.start(bot_token=str(bot_token))
         client.add_event_handler(handler)
+        
 
         # Pulsa Ctrl+C para detener
-        loop.run_until_complete(tg_send_message("Telethon Downloader Started: {}".format(VERSION)))
+        loop.run_until_complete(tg_send_message("Telethon Downloader Started: {}".format(VERSION)+ """
+Commands:
+/t Name Folder,Nombre Castellano
+"""
+))
         logger.info("%s" % VERSION)
         config_file()
         logger.info("********** START TELETHON DOWNLOADER **********")
