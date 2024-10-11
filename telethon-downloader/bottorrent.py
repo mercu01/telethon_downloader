@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-VERSION = "VERSION 3.1.11 - Mercu beta 2.0"
+VERSION = "VERSION 3.1.11 - Mercu beta 2.2"
 HELP = """
 /help		: This Screen
 /version	: Version  
@@ -40,6 +40,8 @@ from logger import logger
 from utils import splash, create_directory, getDownloadPath, getUsers, split_input, config_file
 from youtube import youtube_download
 from createtorrent import CreateTorrentBatchQThread
+
+from pyarr import SonarrAPI
 
 session = SESSION
 
@@ -255,6 +257,134 @@ async def delete_compress_files(_path, file_name, pattern_part):
             file_path_delete = os.path.join(_path, file_complete)  # Ruta completa del archivo
             logger.info(f'DELETE file: {file_path_delete}')
             os.remove(file_path_delete) 
+async def sonarr(update, command):
+    # Set Host URL and API-Key
+    host_url = 'http://10.10.0.11:8990/'
+
+    # You can find your API key in Settings > General.
+    api_key = 'b8d49d87f42447ad9f9eddc8454745b9'
+
+    # Instantiate SonarrAPI Object
+    sonarr = SonarrAPI(host_url, api_key)
+
+    # Get and print TV Shows
+    message = await update.reply(sonarr.get_series(command))
+async def torrent(update, command):
+    commandPartes = command.split(",")
+    # Asignar las partes a variables
+    pathSerie = '/media/mercu/myUsb14T/Series/'+commandPartes[0].strip()
+    nombreCastellano = commandPartes[1].strip()
+    excludeEdit = ["*.mp3","tvshow.nfo"]
+    save_dir = "/media/mercu/myUsbRAID/Torrent/Created"
+    watch_transmission_dir = "/media/mercu/myUsbRAID/Torrent/WatchTransmission"
+    trackers = """http://tracker.files.fm:6969/announce
+
+http://tracker.opentrackr.org:1337/announce
+
+https://tracker.renfei.net:443/announce
+
+https://www.peckservers.com:9443/announce
+
+http://open.acgnxtracker.com:80/announce
+
+udp://odd-hd.fr:6969/announce
+
+udp://tracker2.dler.com:80/announce
+
+udp://tracker.torrent.eu.org:451/announce
+
+udp://tracker.opentrackr.org:1337/announce
+
+udp://open.stealth.si:80/announce
+
+udp://93.158.213.92:1337/announce
+
+udp://208.83.20.20:6969/announce
+
+udp://185.102.219.163:6969/announce
+
+udp://102.223.180.235:6969/announce
+
+udp://23.134.88.6:1337/announce
+
+udp://193.189.100.188:6969/announce
+
+udp://opentracker.i2p.rocks:6969/announce
+
+udp://open.demonii.com:1337/announce
+
+http://tracker.openbittorrent.com/announce
+
+udp://tracker.openbittorrent.com:6969/announce
+
+udp://open.stealth.si/announce
+
+udp://tracker.torrent.eu.org:451/announce
+
+udp://exodus.desync.com:6969/announce
+
+udp://uploads.gamecoast.net:6969/announce
+
+udp://tracker.theoks.net:6969/announce
+
+udp://tracker.ccp.ovh:6969/announce
+
+udp://tracker.bittor.pw:1337/announce
+
+udp://tracker.4.babico.name.tr:3131/announce
+
+udp://thouvenin.cloud:6969/announce
+
+udp://sanincode.com:6969/announce
+
+udp://p4p.arenabg.com:1337/announce
+
+https://tracker.bt4g.com/announce
+
+http://tracker.files.fm:6969/announce
+
+https://www.peckservers.com:9443/announce
+
+udp://tracker2.dler.com/announce
+
+udp://tracker.breizh.pm:6969/announce
+
+udp://93.158.213.92:1337/announce
+
+udp://185.102.219.163:6969/announce
+
+udp://102.223.180.235:6969/announce
+
+udp://23.134.88.6:1337/announce
+
+udp://193.189.100.188:6969/announce
+
+udp://185.243.218.213/announce"""
+    message = await update.reply('creating torrents...')
+    createdTorrents = await CreateTorrentBatchQThread(
+        update,
+        path=pathSerie,
+        exclude=excludeEdit,
+        save_dir=save_dir,
+        trackers=trackers.strip().split(),
+        web_seeds="",
+        private=False,
+        source="",
+        comment=nombreCastellano,
+        include_md5=True,
+        batchModeCheckBox=True
+    )
+    message = await update.reply('Sending to transmission')
+    for fileNamePath in createdTorrents:
+        shutil.copy(os.path.join(save_dir, fileNamePath), os.path.join(watch_transmission_dir, fileNamePath))
+
+    await tg_send_message("---Resume torrents---")
+    #await update.reply("---Resume torrents---")
+    for fileNamePath in createdTorrents:
+        await tg_send_message(fileNamePath)
+        #await update.reply(fileNamePath)
+        await tg_send_file(CID,os.path.join(save_dir, fileNamePath))
+
 async def worker(name):
     while True:
         # Variables for control calls to progress bar
@@ -387,6 +517,7 @@ async def worker(name):
 
 client = TelegramClient(session, api_id, api_hash, proxy = None, request_retries = 10, flood_sleep_threshold = 120)
 
+
 @events.register(events.NewMessage)
 async def handler(update):
     global temp_completed_path
@@ -442,121 +573,10 @@ async def handler(update):
                 time.sleep(2)
                 if update.message.message.startswith("/t"):
                     command = update.message.message.replace("/t", "")
-                    commandPartes = command.split(",")
-                    # Asignar las partes a variables
-                    pathSerie = '/media/mercu/myUsb14T/Series/'+commandPartes[0].strip()
-                    nombreCastellano = commandPartes[1].strip()
-                    excludeEdit = ["*.mp3","tvshow.nfo"]
-                    save_dir = "/media/mercu/myUsbRAID/Torrent/Created"
-                    watch_transmission_dir = "/media/mercu/myUsbRAID/Torrent/WatchTransmission"
-                    trackers = """http://tracker.files.fm:6969/announce
-
-http://tracker.opentrackr.org:1337/announce
-
-https://tracker.renfei.net:443/announce
-
-https://www.peckservers.com:9443/announce
-
-http://open.acgnxtracker.com:80/announce
-
-udp://odd-hd.fr:6969/announce
-
-udp://tracker2.dler.com:80/announce
-
-udp://tracker.torrent.eu.org:451/announce
-
-udp://tracker.opentrackr.org:1337/announce
-
-udp://open.stealth.si:80/announce
-
-udp://93.158.213.92:1337/announce
-
-udp://208.83.20.20:6969/announce
-
-udp://185.102.219.163:6969/announce
-
-udp://102.223.180.235:6969/announce
-
-udp://23.134.88.6:1337/announce
-
-udp://193.189.100.188:6969/announce
-
-udp://opentracker.i2p.rocks:6969/announce
-
-udp://open.demonii.com:1337/announce
-
-http://tracker.openbittorrent.com/announce
-
-udp://tracker.openbittorrent.com:6969/announce
-
-udp://open.stealth.si/announce
-
-udp://tracker.torrent.eu.org:451/announce
-
-udp://exodus.desync.com:6969/announce
-
-udp://uploads.gamecoast.net:6969/announce
-
-udp://tracker.theoks.net:6969/announce
-
-udp://tracker.ccp.ovh:6969/announce
-
-udp://tracker.bittor.pw:1337/announce
-
-udp://tracker.4.babico.name.tr:3131/announce
-
-udp://thouvenin.cloud:6969/announce
-
-udp://sanincode.com:6969/announce
-
-udp://p4p.arenabg.com:1337/announce
-
-https://tracker.bt4g.com/announce
-
-http://tracker.files.fm:6969/announce
-
-https://www.peckservers.com:9443/announce
-
-udp://tracker2.dler.com/announce
-
-udp://tracker.breizh.pm:6969/announce
-
-udp://93.158.213.92:1337/announce
-
-udp://185.102.219.163:6969/announce
-
-udp://102.223.180.235:6969/announce
-
-udp://23.134.88.6:1337/announce
-
-udp://193.189.100.188:6969/announce
-
-udp://185.243.218.213/announce"""
-                    message = await update.reply('creating torrents...')
-                    createdTorrents = await CreateTorrentBatchQThread(
-                        update,
-                        path=pathSerie,
-                        exclude=excludeEdit,
-                        save_dir=save_dir,
-                        trackers=trackers.strip().split(),
-                        web_seeds="",
-                        private=False,
-                        source="",
-                        comment=nombreCastellano,
-                        include_md5=True,
-                        batchModeCheckBox=True
-                    )
-                    message = await update.reply('Sending to transmission')
-                    for fileNamePath in createdTorrents:
-                        shutil.copy(os.path.join(save_dir, fileNamePath), os.path.join(watch_transmission_dir, fileNamePath))
-
-                    await tg_send_message("---Resume torrents---")
-                    #await update.reply("---Resume torrents---")
-                    for fileNamePath in createdTorrents:
-                        await tg_send_message(fileNamePath)
-                        #await update.reply(fileNamePath)
-                        await tg_send_file(CID,os.path.join(save_dir, fileNamePath))
-                    
+                    torrent(update, command)
+                if update.message.message.startswith("/sonnar"):
+                    command = update.message.message.replace("/sonnar", "")
+                    sonarr(update, command)
                 elif '/folder' in update.message.message:
                     folder = update.message.message
                     FOLDER_GROUP = update.message.date

@@ -10,6 +10,7 @@ RUN \
   && apt-get -q update                                              \
   && apt-get -qy dist-upgrade                                       \
   && apt-get install -qy ffmpeg                                    \
+	clang lib{jpeg-turbo,webp}-dev python{,-dev} zlib-dev \ #sonarr pyarr
 	unzip \
 	unrar \
 	#python3 \

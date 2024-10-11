@@ -7,3 +7,8 @@ docker-compose.yml
 docker-compose.dev.yml
 telethon-downloader/bottorrent.session
 telethon-downloader/bottorrent.session-journal
+/.vs/telethon_downloader/FileContentIndex
+/.vs/telethon_downloader/v17/DocumentLayout.json
+/.vs/telethon_downloader/v17/DocumentLayout.backup.json
+/.vs/telethon_downloader/v17/DocumentLayout.json
+/.vs/telethon_downloader/v17/.wsuo
