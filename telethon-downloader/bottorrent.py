@@ -261,7 +261,7 @@ async def worker(name):
         global cache_last_time
         cache_last_time = time.time()
         global cache_interval
-        cache_interval = TG_MAX_PARALLEL  # 1 second X parallel proccess, Telegram limit 1 message every second
+        cache_interval = TG_MAX_PARALLEL*3  # 2 second X parallel proccess, Telegram limit 1 message every second
 
         queue_item = await queue.get()
         update = queue_item[0]
