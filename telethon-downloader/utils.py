@@ -144,7 +144,7 @@ def config_file():
 		config['FOLDER_BY_AUTHORIZED'] = {}
 
 		AUTHORIZED_USER, usuarios = getUsers()
-
+		os.mkdir("/config")
 		for usuario in usuarios:
 			config['FOLDER_BY_AUTHORIZED'][f"{usuario}"] = '/download/{}'.format(f"{usuario}")
 
