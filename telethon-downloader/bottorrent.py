@@ -15,6 +15,7 @@ UPDATE = """
 - UPLOAD FILES IN /download/sendFiles CON EL COMANDO /sendfiles
 """
 
+import encodings
 import re
 import os
 import shutil
@@ -23,6 +24,7 @@ import time
 import asyncio
 import threading
 import zipfile
+import encodings.latin_1
 import rarfile
 
 import logging
@@ -33,6 +35,7 @@ import traceback
 from telethon import TelegramClient, events
 from telethon.tl import types
 from telethon.utils import get_extension, get_peer_id, resolve_id
+from telethon.tl.custom import Button
 
 
 from env import *
@@ -511,11 +514,28 @@ async def worker(name):
             logger.info('[%s] Excepcion %s' % (file_name, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime())))
             await message.edit('Error!')
             message = await update.reply('ERROR: %s downloading : %s' % (e.__class__.__name__, str(e)))
-
+            
         # Unidad de trabajo terminada.
         queue.task_done()
 
 client = TelegramClient(session, api_id, api_hash, proxy = None, request_retries = 10, flood_sleep_threshold = 120)
+# Callback data
+
+ONE = "telethonresponseone"
+TWO = "telethonresponsetwo"
+serie = Serie("","")
+#ONE Buttons Results search:
+@client.on(events.CallbackQuery(pattern="^"+ONE))
+async def callback(event):
+    id = event.data.decode(encoding='utf-8').replace(ONE, "")
+    await event.edit('Getting serie id: ''{}'''.format(id))
+    result = await sonarr_get_serie(id)
+    serie.path=result.path;
+    serie.names=result.names;
+    buttons = [
+        [Button.inline(text = name, data = TWO + name) for name in serie.names]
+    ]
+    await client.send_message(usuarios[0], 'Choose spanish title:', buttons = buttons)
 
 
 @events.register(events.NewMessage)

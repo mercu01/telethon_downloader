@@ -17,11 +17,13 @@ RUN \
 	#python3-setuptools \
 	python3-pip && \
 	#usermod -d /app abc  && \
-	python3 -m pip install --upgrade pip  && \
-	pip3 install -r requirements.txt --upgrade && \
 	apt-get remove --purge -y build-essential  && \
 	apt-get autoclean -y && apt-get autoremove -y  && \
 	rm -rf /default /etc/default /tmp/* /etc/cont-init.d/* /var/lib/apt/lists/* /var/tmp/*
+
+RUN \
+	python3 -m pip install --upgrade pip  && \
+	pip3 install -r requirements.txt --upgrade  --root-user-action=ignore
 
 COPY 7zz /usr/local/bin/7zz
 RUN chmod 777 /usr/local/bin/7zz
