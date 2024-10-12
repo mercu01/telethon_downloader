@@ -542,16 +542,24 @@ async def callback(event):
     serie.path=result.path;
     serie.names=result.names;
     serie.image=result.image;
+    if len(serie.names)==1:
+        await createTorrentAfterQuestions(serie.names[0])
+        return True
+
     buttons = [
         [Button.inline(text = name, data = TWO + name) for name in serie.names]
     ]
     await client.send_message(usuarios[0], 'Choose spanish title:', buttons = buttons)
-
+    return True
 #TWO Buttons choose spanish title:
 @client.on(events.CallbackQuery(pattern="^"+TWO))
 async def callback(event):
     spanishTitle = event.data.decode(encoding='utf-8').replace(TWO, "")
     await event.edit('Chose: ''{}'''.format(spanishTitle))
+    await createTorrentAfterQuestions(spanishTitle)
+    return True
+    
+async def createTorrentAfterQuestions(spanishTitle):
     commandValue = serie.path + "," + spanishTitle
     message = await client.send_message(usuarios[0], "/t " + commandValue)
     try:
@@ -561,7 +569,7 @@ async def callback(event):
     except Exception as e:
         message = await message.reply('ERROR: ' + str(e) + "\n" + str(traceback.print_exc()))
         logger.info('EXCEPTION USER: %s %s', str(e), str(traceback.print_exc()))
-
+    return True
 @events.register(events.NewMessage)
 async def handler(update):
     global temp_completed_path

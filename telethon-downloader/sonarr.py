@@ -27,9 +27,11 @@ async def sonarr_get_serie(id):
     # Get serie
     series = sonarr.get_series(series_id=id)
     folder = series.path.replace(series.rootFolderPath,"")
-    alternativeTitles = [i.get("title") for i in series._data.get("alternateTitles")]
+    titles = [i.get("title") for i in series._data.get("alternateTitles")]
+    if any(titles)==False:
+        titles.append(series.title)
     image = next(filter(lambda x: "poster" in x.remoteUrl, series.images), None);
-    return Serie(id, folder, alternativeTitles, image.remoteUrl);
+    return Serie(id, folder, titles, image.remoteUrl);
 
 async def tg_send_message(msg, client, usuarios):
     await client.send_message(usuarios[0], msg)
