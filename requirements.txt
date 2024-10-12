@@ -2,3 +2,7 @@ telethon
 yt_dlp
 rarfile
 bencoder.pyx
+arrapi
+setuptools
+cryptg
+pillow

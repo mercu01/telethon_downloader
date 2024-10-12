@@ -37,10 +37,10 @@ TG_PROGRESS_DOWNLOAD=True</Environment>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="telethon-downloader\bottorrent.py" />
-    <Compile Include="telethon-downloader\console.py" />
     <Compile Include="telethon-downloader\createtorrent.py" />
     <Compile Include="telethon-downloader\env.py" />
     <Compile Include="telethon-downloader\logger.py" />
+    <Compile Include="telethon-downloader\sonarr.py" />
     <Compile Include="telethon-downloader\utils.py" />
     <Compile Include="telethon-downloader\youtube.py" />
   </ItemGroup>
