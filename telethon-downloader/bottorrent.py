@@ -44,6 +44,7 @@ from utils import splash, create_directory, getDownloadPath, getUsers, split_inp
 from youtube import youtube_download
 from createtorrent import CreateTorrentBatchQThread
 
+from sonarr import Serie, sonarr_get_serie, sonarr_search
 from pyarr import SonarrAPI
 
 session = SESSION
