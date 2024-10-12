@@ -19,3 +19,4 @@ telethon-downloader/bottorrent.session-journal
 /.vs/VSWorkspaceState.json
 /.vs/slnx.sqlite
 /.vs/VSWorkspaceState.json
+/telethon_downloader.pyproj
