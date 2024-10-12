@@ -538,6 +538,18 @@ async def callback(event):
     ]
     await client.send_message(usuarios[0], 'Choose spanish title:', buttons = buttons)
 
+#TWO Buttons choose spanish title:
+@client.on(events.CallbackQuery(pattern="^"+TWO))
+async def callback(event):
+    spanishTitle = event.data.decode(encoding='utf-8').replace(TWO, "")
+    await event.edit('Chose: ''{}'''.format(spanishTitle))
+    commandValue = serie.path + "," + spanishTitle
+    message = await client.send_message(usuarios[0], "/t " + commandValue)
+    try:
+        await torrent(message, commandValue)
+    except Exception as e:
+        message = await message.reply('ERROR: ' + str(e) + "\n" + str(traceback.print_exc()))
+        logger.info('EXCEPTION USER: %s %s', str(e), str(traceback.print_exc()))
 
 @events.register(events.NewMessage)
 async def handler(update):
@@ -593,11 +605,18 @@ async def handler(update):
             else: 
                 time.sleep(2)
                 if update.message.message.startswith("/t"):
-                    command = update.message.message.replace("/t", "")
+                    command = update.message.message.replace("/t ", "")
                     torrent(update, command)
-                if update.message.message.startswith("/sonnar"):
-                    command = update.message.message.replace("/sonnar", "")
-                    sonarr(update, command)
+                elif update.message.message.startswith("/sonarr"):
+                    command = update.message.message.replace("/sonarr ", "")
+                    series = await sonarr_search(command, client, usuarios)
+                    if series.__len__==0:
+                        await tg_send_message("Not found")
+                        return True
+                    buttons = [
+                        [Button.inline(text = serie._name, data = str(ONE)+str(serie.id)) for serie in series]
+                    ]
+                    await client.send_message(usuarios[0], 'Search results:', buttons = buttons)
                 elif '/folder' in update.message.message:
                     folder = update.message.message
                     FOLDER_GROUP = update.message.date
