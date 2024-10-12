@@ -10,9 +10,11 @@ api_key = 'b8d49d87f42447ad9f9eddc8454745b9'
 sonarr = SonarrAPI(host_url, api_key)
 
 class Serie(object):
-    def __init__(self, path, names):
+    def __init__(self, id, path, names, image):
+        self.id = id
         self.path = path
         self.names = names
+        self.image = image
 
 async def sonarr_search(command, client, usuarios):
     # Search series downloaded
@@ -26,8 +28,14 @@ async def sonarr_get_serie(id):
     series = sonarr.get_series(series_id=id)
     folder = series.path.replace(series.rootFolderPath,"")
     alternativeTitles = [i.get("title") for i in series._data.get("alternateTitles")]
-    return Serie(folder, alternativeTitles);
+    image = next(filter(lambda x: "poster" in x.remoteUrl, series.images), None);
+    return Serie(id, folder, alternativeTitles, image.remoteUrl);
 
 async def tg_send_message(msg, client, usuarios):
     await client.send_message(usuarios[0], msg)
+    return True
+
+async def sonarr_put_serie_tag_uploaded(id):
+    series = sonarr.get_series(series_id=id)
+    series.edit(tags=["uploaded"])
     return True

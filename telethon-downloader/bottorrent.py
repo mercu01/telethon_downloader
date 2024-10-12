@@ -31,6 +31,8 @@ import logging
 import configparser
 import traceback
 
+import urllib.request
+
 # Imports Telethon
 from telethon import TelegramClient, events
 from telethon.tl import types
@@ -44,7 +46,7 @@ from utils import splash, create_directory, getDownloadPath, getUsers, split_inp
 from youtube import youtube_download
 from createtorrent import CreateTorrentBatchQThread
 
-from sonarr import Serie, sonarr_get_serie, sonarr_search
+from sonarr import Serie, sonarr_get_serie, sonarr_search, sonarr_put_serie_tag_uploaded
 
 session = SESSION
 
@@ -79,10 +81,10 @@ async def tg_send_message(msg):
     if AUTHORIZED_USER: await client.send_message(usuarios[0], msg)
     return True
 
-async def tg_send_file(CID,file,name=''):
+async def tg_send_file(CID, file, force_document, caption='', action='document'):
     #await client.send_file(6537360, file)
-    async with client.action(CID, 'document') as action:
-        await client.send_file(CID, file,caption=name,force_document=True,progress_callback=action.progress)
+    async with client.action(CID, action) as action:
+        await client.send_file(CID, file,caption=caption, force_document=force_document, progress_callback=action.progress)
     #await client.send_message(6537360, file)
 
 # Printing download progress
@@ -261,7 +263,12 @@ async def delete_compress_files(_path, file_name, pattern_part):
             logger.info(f'DELETE file: {file_path_delete}')
             os.remove(file_path_delete) 
 
-async def torrent(update, command):
+async def downloadImg(command, CID, image, caption):
+    localPath="./local-filename.jpg"
+    urllib.request.urlretrieve(image, localPath)
+    await tg_send_file(CID, localPath, False, caption, 'photo')
+
+async def torrent(update, command, CID, image, serie_id):
     commandPartes = command.split(",")
     # Asignar las partes a variables
     pathSerie = '/media/mercu/myUsb14T/Series/'+commandPartes[0].strip()
@@ -369,13 +376,25 @@ udp://185.243.218.213/announce"""
     message = await update.reply('Sending to transmission')
     for fileNamePath in createdTorrents:
         shutil.copy(os.path.join(save_dir, fileNamePath), os.path.join(watch_transmission_dir, fileNamePath))
+    
+    message = await update.reply('Add sonarr tag uploaded')
+    if serie_id != 0:
+        await sonarr_put_serie_tag_uploaded(serie_id)
 
     await tg_send_message("---Resume torrents---")
     #await update.reply("---Resume torrents---")
+    firtsFile = True
     for fileNamePath in createdTorrents:
-        await tg_send_message(fileNamePath)
+        if firtsFile == True:
+            if image != "":
+                await downloadImg(command, CID, image, fileNamePath)
+            else:
+                await tg_send_message(fileNamePath)
+        else:
+            await tg_send_message(fileNamePath)
+        
         #await update.reply(fileNamePath)
-        await tg_send_file(CID,os.path.join(save_dir, fileNamePath))
+        await tg_send_file(CID,os.path.join(save_dir, fileNamePath), True)
 
 async def worker(name):
     while True:
@@ -512,15 +531,17 @@ client = TelegramClient(session, api_id, api_hash, proxy = None, request_retries
 
 ONE = "telethonresponseone"
 TWO = "telethonresponsetwo"
-serie = Serie("","")
+serie = Serie(0, "", "", "")
 #ONE Buttons Results search:
 @client.on(events.CallbackQuery(pattern="^"+ONE))
 async def callback(event):
     id = event.data.decode(encoding='utf-8').replace(ONE, "")
     await event.edit('Getting serie id: ''{}'''.format(id))
     result = await sonarr_get_serie(id)
+    serie.id=result.id;
     serie.path=result.path;
     serie.names=result.names;
+    serie.image=result.image;
     buttons = [
         [Button.inline(text = name, data = TWO + name) for name in serie.names]
     ]
@@ -534,7 +555,9 @@ async def callback(event):
     commandValue = serie.path + "," + spanishTitle
     message = await client.send_message(usuarios[0], "/t " + commandValue)
     try:
-        await torrent(message, commandValue)
+        real_id = get_peer_id(message.peer_id)
+        CID , peer_type = resolve_id(real_id)
+        await torrent(message, commandValue, CID, serie.image, serie.id)
     except Exception as e:
         message = await message.reply('ERROR: ' + str(e) + "\n" + str(traceback.print_exc()))
         logger.info('EXCEPTION USER: %s %s', str(e), str(traceback.print_exc()))
@@ -594,7 +617,7 @@ async def handler(update):
                 time.sleep(2)
                 if update.message.message.startswith("/t"):
                     command = update.message.message.replace("/t ", "")
-                    torrent(update, command)
+                    torrent(update, command, CID, "", 0)
                 elif update.message.message.startswith("/sonarr"):
                     command = update.message.message.replace("/sonarr ", "")
                     series = await sonarr_search(command, client, usuarios)
