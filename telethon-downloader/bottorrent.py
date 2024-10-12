@@ -45,7 +45,6 @@ from youtube import youtube_download
 from createtorrent import CreateTorrentBatchQThread
 
 from sonarr import Serie, sonarr_get_serie, sonarr_search
-from pyarr import SonarrAPI
 
 session = SESSION
 
@@ -261,18 +260,7 @@ async def delete_compress_files(_path, file_name, pattern_part):
             file_path_delete = os.path.join(_path, file_complete)  # Ruta completa del archivo
             logger.info(f'DELETE file: {file_path_delete}')
             os.remove(file_path_delete) 
-async def sonarr(update, command):
-    # Set Host URL and API-Key
-    host_url = 'http://10.10.0.11:8990/'
 
-    # You can find your API key in Settings > General.
-    api_key = 'b8d49d87f42447ad9f9eddc8454745b9'
-
-    # Instantiate SonarrAPI Object
-    sonarr = SonarrAPI(host_url, api_key)
-
-    # Get and print TV Shows
-    message = await update.reply(sonarr.get_series(command))
 async def torrent(update, command):
     commandPartes = command.split(",")
     # Asignar las partes a variables
