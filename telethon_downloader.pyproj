@@ -13,10 +13,7 @@
     <LaunchProvider>Standard Python launcher</LaunchProvider>
     <InterpreterId />
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
-    <Environment>TG_AUTHORIZED_USER_ID=6283360759
-TG_API_ID=24703534
-TG_API_HASH=566f1abe197303f111dc0de882309932
-TG_BOT_TOKEN=7613040043:AAExaofDqRb9mVM7B3dJsXs6yBNcmWvMRY0
+    <Environment>
 TG_DL_TIMEOUT=10800
 TG_MAX_PARALLEL=2
 TG_PROGRESS_DOWNLOAD=True</Environment>
