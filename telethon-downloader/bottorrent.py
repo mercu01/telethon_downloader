@@ -48,6 +48,7 @@ from createtorrent import CreateTorrentBatchQThread
 
 from sonarr import Serie, sonarr_get_serie, sonarr_search, sonarr_put_serie_tag_uploaded
 
+
 session = SESSION
 
 
@@ -268,33 +269,14 @@ async def downloadImg(command, CID, image, caption):
     urllib.request.urlretrieve(image, localPath)
     await tg_send_file(CID, localPath, False, caption, 'photo')
 
-async def torrent(update, command, CID, image, serie_id):
-    commandPartes = command.split(",")
-    # Asignar las partes a variables
-    pathSerie = '/media/mercu/myUsb14T/Series/'+commandPartes[0].strip()
-    nombreCastellano = commandPartes[1].strip()
-    excludeEdit = ["*.mp3","tvshow.nfo"]
-    save_dir = "/media/mercu/myUsbRAID/Torrent/Created"
-    watch_transmission_dir = "/media/mercu/myUsbRAID/Torrent/WatchTransmission"
-    trackers = """http://tracker.files.fm:6969/announce
-
+DefaultTrackers = """
 http://tracker.opentrackr.org:1337/announce
-
-https://tracker.renfei.net:443/announce
 
 https://www.peckservers.com:9443/announce
 
-http://open.acgnxtracker.com:80/announce
-
-udp://odd-hd.fr:6969/announce
-
 udp://tracker2.dler.com:80/announce
 
-udp://tracker.torrent.eu.org:451/announce
-
 udp://tracker.opentrackr.org:1337/announce
-
-udp://open.stealth.si:80/announce
 
 udp://93.158.213.92:1337/announce
 
@@ -304,21 +286,9 @@ udp://185.102.219.163:6969/announce
 
 udp://102.223.180.235:6969/announce
 
-udp://23.134.88.6:1337/announce
-
 udp://193.189.100.188:6969/announce
 
-udp://opentracker.i2p.rocks:6969/announce
-
-udp://open.demonii.com:1337/announce
-
 http://tracker.openbittorrent.com/announce
-
-udp://tracker.openbittorrent.com:6969/announce
-
-udp://open.stealth.si/announce
-
-udp://tracker.torrent.eu.org:451/announce
 
 udp://exodus.desync.com:6969/announce
 
@@ -344,28 +314,51 @@ http://tracker.files.fm:6969/announce
 
 https://www.peckservers.com:9443/announce
 
-udp://tracker2.dler.com/announce
-
 udp://tracker.breizh.pm:6969/announce
 
 udp://93.158.213.92:1337/announce
 
-udp://185.102.219.163:6969/announce
-
-udp://102.223.180.235:6969/announce
-
 udp://23.134.88.6:1337/announce
 
-udp://193.189.100.188:6969/announce
-
 udp://185.243.218.213/announce"""
-    message = await update.reply('creating torrents...')
+
+class Trackers: 
+    def __init__(self, message, trackers): 
+        self.message = message
+        self.list = trackers
+
+async def getTrackerList(update):
+    message = await update.reply('Getting trackers online...')
+    trackers = DefaultTrackers
+    url="https://newtrackon.com/api/stable?include_ipv4_only_trackers=true&include_ipv6_only_trackers=false"
+    try:
+        req = urllib.request.Request(url = url, method = "GET", headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            bytelist = response.read()
+            trackers = [x.decode('utf-8') for x in bytelist]
+    except Exception as e:
+        errorMessage = 'ERROR: %s GETTING TRACKERS ONLINE YT: %s' % (e.__class__.__name__, str(e));
+        logger.info(errorMessage)
+        message = await update.reply(errorMessage)
+    return Trackers(message, trackers) 
+
+async def torrent(update, command, CID, image, serie_id):
+    commandPartes = command.split(",")
+    # Asignar las partes a variables
+    pathSerie = '/media/mercu/myUsb14T/Series/'+commandPartes[0].strip()
+    nombreCastellano = commandPartes[1].strip()
+    excludeEdit = ["*.mp3","tvshow.nfo"]
+    save_dir = "/media/mercu/myUsbRAID/Torrent/Created"
+    watch_transmission_dir = "/media/mercu/myUsbRAID/Torrent/WatchTransmission"
+    trackers = await getTrackerList(update)
+    message = trackers.message
+    message = await update.reply('Creating torrents...')
     createdTorrents = await CreateTorrentBatchQThread(
         update,
         path=pathSerie,
         exclude=excludeEdit,
         save_dir=save_dir,
-        trackers=trackers.strip().split(),
+        trackers=trackers.list.strip().split(),
         web_seeds="",
         private=False,
         source="",
