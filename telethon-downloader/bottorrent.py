@@ -386,6 +386,7 @@ udp://185.243.218.213/announce"""
     firtsFile = True
     for fileNamePath in createdTorrents:
         if firtsFile == True:
+            firtsFile = False
             if image != "":
                 await downloadImg(command, CID, image, fileNamePath)
             else:
@@ -529,8 +530,8 @@ async def worker(name):
 client = TelegramClient(session, api_id, api_hash, proxy = None, request_retries = 10, flood_sleep_threshold = 120)
 # Callback data
 
-ONE = "telethonresponseone"
-TWO = "telethonresponsetwo"
+ONE = "telethonresponseone_"
+TWO = "telethonresponsetwo_"
 serie = Serie(0, "", "", "")
 #ONE Buttons Results search:
 @client.on(events.CallbackQuery(pattern="^"+ONE))
@@ -547,14 +548,16 @@ async def callback(event):
         return True
 
     buttons = [
-        [Button.inline(text = name, data = TWO + name) for name in serie.names]
+        [Button.inline(text = serie.names[i], data = TWO + str(i)) for i in range(1,len(serie.names))]
     ]
     await client.send_message(usuarios[0], 'Choose spanish title:', buttons = buttons)
     return True
+
 #TWO Buttons choose spanish title:
 @client.on(events.CallbackQuery(pattern="^"+TWO))
 async def callback(event):
-    spanishTitle = event.data.decode(encoding='utf-8').replace(TWO, "")
+    serieTitlePosition = event.data.decode(encoding='utf-8').replace(TWO, "")
+    spanishTitle = serie.names[int(serieTitlePosition)]
     await event.edit('Chose: ''{}'''.format(spanishTitle))
     await createTorrentAfterQuestions(spanishTitle)
     return True
@@ -570,6 +573,7 @@ async def createTorrentAfterQuestions(spanishTitle):
         message = await message.reply('ERROR: ' + str(e) + "\n" + str(traceback.print_exc()))
         logger.info('EXCEPTION USER: %s %s', str(e), str(traceback.print_exc()))
     return True
+
 @events.register(events.NewMessage)
 async def handler(update):
     global temp_completed_path
