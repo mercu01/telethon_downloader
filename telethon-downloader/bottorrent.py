@@ -32,6 +32,7 @@ import configparser
 import traceback
 
 import urllib.request
+import requests
 
 # Imports Telethon
 from telethon import TelegramClient, events
@@ -332,10 +333,8 @@ async def getTrackerList(update):
     trackers = DefaultTrackers
     url="https://newtrackon.com/api/stable?include_ipv4_only_trackers=true&include_ipv6_only_trackers=false"
     try:
-        req = urllib.request.Request(url = url, method = "GET", headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response:
-            bytelist = response.read()
-            trackers = [x.decode('utf-8') for x in bytelist]
+        response = requests.get(url)
+        trackers = response.text
     except Exception as e:
         errorMessage = 'ERROR: %s GETTING TRACKERS ONLINE YT: %s' % (e.__class__.__name__, str(e));
         logger.info(errorMessage)

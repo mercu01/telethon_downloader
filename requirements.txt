@@ -6,3 +6,4 @@ arrapi
 setuptools
 cryptg
 pillow
+requests
