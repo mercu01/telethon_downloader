@@ -1,15 +1,14 @@
 FROM python:3.9-slim-bullseye AS basetelethon
 
-
-WORKDIR /app
-
-COPY requirements.txt requirements.txt
+RUN \
+	sed -i -e's/ main/ main contrib non-free/g' /etc/apt/sources.list \
+	&& apt-get -q update \
+	&& apt-get -qy dist-upgrade
 
 RUN \
-  sed -i -e's/ main/ main contrib non-free/g' /etc/apt/sources.list \
-  && apt-get -q update                                              \
-  && apt-get -qy dist-upgrade                                       \
-  && apt-get install -qy ffmpeg                                    \
+	apt-get install -qy ffmpeg \
+	rustc \
+	gcc libffi-dev libssl-dev python3-dev \
 	unzip \
 	unrar \
 	#python3 \
@@ -19,6 +18,10 @@ RUN \
 	apt-get remove --purge -y build-essential  && \
 	apt-get autoclean -y && apt-get autoremove -y  && \
 	rm -rf /default /etc/default /tmp/* /etc/cont-init.d/* /var/lib/apt/lists/* /var/tmp/*
+
+WORKDIR /app
+
+COPY requirements.txt requirements.txt
 
 RUN \
 	python3 -m pip install --upgrade pip  && \

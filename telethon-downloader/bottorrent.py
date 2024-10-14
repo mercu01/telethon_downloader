@@ -540,7 +540,7 @@ async def callback(event):
         return True
 
     buttons = [
-        [Button.inline(text = serie.names[i], data = TWO + str(i)) for i in range(1,len(serie.names))]
+        [Button.inline(text = serie.names[i], data = TWO + str(i))] for i in range(1,len(serie.names))
     ]
     await client.send_message(usuarios[0], 'Choose spanish title:', buttons = buttons)
     return True
@@ -629,8 +629,9 @@ async def handler(update):
                         await tg_send_message("Not found")
                         return True
                     buttons = [
-                        [Button.inline(text = serie._name, data = str(ONE)+str(serie.id)) for serie in series]
-                    ]
+                        [Button.inline(text = serie._name, data = str(ONE)+str(serie.id))] for serie in series
+                    ]      
+
                     await client.send_message(usuarios[0], 'Search results:', buttons = buttons)
                 elif '/folder' in update.message.message:
                     folder = update.message.message
