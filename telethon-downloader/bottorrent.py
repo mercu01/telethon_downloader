@@ -6,6 +6,8 @@ HELP = """
 /version	: Version  
 /sendfiles	: send files found in the /download/sendFiles folder
 /id			: YOUR ID TELEGRAM
+/t          : Name Folder,Nombre Castellano [Create torrent]
+/sonarr     : Serie to search [Search and create torrent]
 """
 UPDATE = """
 - DE HASTA 2000MB
@@ -536,7 +538,8 @@ async def callback(event):
     serie.names=result.names;
     serie.image=result.image;
     if len(serie.names)==1:
-        await createTorrentAfterQuestions(serie.names[0])
+        # Fix: Path is better than name, because name contains forbiden characters 
+        await createTorrentAfterQuestions(serie.path)
         return True
 
     buttons = [
@@ -696,11 +699,7 @@ if __name__ == '__main__':
         
 
         # Pulsa Ctrl+C para detener
-        loop.run_until_complete(tg_send_message("Telethon Downloader Started: {}".format(VERSION)+ """
-Commands:
-/t Name Folder,Nombre Castellano
-"""
-))
+        loop.run_until_complete(tg_send_message("Telethon Downloader Started: {}".format(VERSION)+ HELP))
         logger.info("%s" % VERSION)
         config_file()
         logger.info("********** START TELETHON DOWNLOADER **********")
