@@ -90,7 +90,7 @@ async def tg_send_file(CID, file, force_document, caption='', action='document')
     #await client.send_message(6537360, file)
 
 # Printing download progress
-async def callback(current, total, file_path, file_name, message, _download_path=''):
+async def callback_download(current, total, file_path, file_name, message, _download_path=''):
     global cache_last_time
     global cache_interval
     cache_current_time = time.time()
@@ -453,7 +453,7 @@ async def worker(name):
         try:
             loop = asyncio.get_event_loop()
             if (TG_PROGRESS_DOWNLOAD == True or TG_PROGRESS_DOWNLOAD == 'True' ):
-                task = loop.create_task(client.download_media(update.message, file_path, progress_callback=lambda x,y: callback(x,y,file_path,file_name,message, _download_path)))
+                task = loop.create_task(client.download_media(update.message, file_path, progress_callback=lambda x,y: callback_download(x,y,file_path,file_name,message, _download_path)))
             else:
                 task = loop.create_task(client.download_media(update.message, file_path))
             download_result = await asyncio.wait_for(task, timeout = maximum_seconds_per_download)
