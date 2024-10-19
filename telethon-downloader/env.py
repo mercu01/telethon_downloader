@@ -34,6 +34,7 @@ YT_DL_TIMEOUT = int(os.environ.get('TG_DL_TIMEOUT',7200))
 PATH_TMP = os.path.join(TG_DOWNLOAD_PATH,'tmp')
 PATH_COMPLETED = os.path.join(TG_DOWNLOAD_PATH,'completed')
 PATH_YOUTUBE = os.path.join(TG_DOWNLOAD_PATH,'youtube')
+PATH_PELICULAS = get_env('TG_FOLDER_BY_PELICULAS', '/Peliculas')
 
 PATH_CONFIG = '/config/config.ini'
 

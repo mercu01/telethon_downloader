@@ -134,7 +134,9 @@ async def CreateTorrentBatchQThread(update, path, exclude, save_dir, trackers, w
                 parte_principal, ultimo_directorio = os.path.split(parent_p)
                 parent_p=parte_principal
             filtered_entries = [p for p in entries if not any(fnmatch.fnmatch(p, ex) for ex in exclude)]
-            name_parent=os.path.basename(os.path.normpath(parent_p));
+            if filtered_entries is not None:
+                filtered_entries.sort(reverse=True);
+            name_parent = os.path.basename(os.path.normpath(parent_p));
             for i, p in enumerate(filtered_entries):
                 p = os.path.join(parent_p, p)
                 if not is_hidden_file(p):

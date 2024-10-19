@@ -8,6 +8,7 @@ HELP = """
 /id			: YOUR ID TELEGRAM
 /t          : Name Folder,Nombre Castellano [Create torrent]
 /sonarr     : Serie to search [Search and create torrent]
+/move       : Move file to /Peliculas
 """
 UPDATE = """
 - DE HASTA 2000MB
@@ -17,7 +18,9 @@ UPDATE = """
 - UPLOAD FILES IN /download/sendFiles CON EL COMANDO /sendfiles
 """
 
+from ast import List
 import encodings
+from glob import glob
 import re
 import os
 import shutil
@@ -81,6 +84,9 @@ create_directory(completed_path)
 
 FOLDER_GROUP = ''
 
+# semaphore to limit the number of threads that can access the list simultaneously to 1 for UNCOMPRESE FILES
+semaphoreZIP = asyncio.Semaphore(1)
+
 async def tg_send_message(msg):
     if AUTHORIZED_USER: await client.send_message(usuarios[0], msg)
     return True
@@ -103,8 +109,7 @@ async def callback_download(current, total, file_path, file_name, message, _down
         try:
             await message.edit(f'Downloading {file_name} ... {format_float}% \ndownload in:\n{_download_path}')
         except Exception as e:
-            logger.critical(e)
-            logger.info('[EXCEPTION Printing download progress]: %s' % (str(e)))
+            await proccessError(exception = e, telethonMessage = message, title = '[EXCEPTION Printing download progress]: %s' % (str(e)), replyTO = message)
             pass
         finally:
             current
@@ -135,101 +140,43 @@ async def decide_format_compresed_firts_file(final_path, file_name, pattern_part
         logger.info(mensaje)
         return final_path
 async def unrar(_path, final_path, file_name, end_time, message, pattern_part, template_part, update):
-    try:
-        mensaje = 'Is RAR compressed file %s [%s] => [%s]' % (end_time, file_name, final_path)
-        logger.info(mensaje)
-        path_compressed_file = await decide_format_compresed_firts_file(final_path, file_name, pattern_part, template_part)
-        
-        cmd = f'cd {_path} && unrar x -o+ \'{os.path.basename(path_compressed_file)}\''
-        logger.info(cmd)
-        end_time_short = time.strftime('%H:%M', time.localtime())
-        mensaje = 'Decompressing... %s' % (end_time_short)
-        compressed_file = rarfile.RarFile(path_compressed_file)
-        files_compressed = compressed_file.namelist()
-        # Print rar files
-        for file_compressed in files_compressed:
-            mensaje += '\n' + file_compressed
-        # Close the archive
-        compressed_file.close() 
+    if semaphoreZIP.locked():
+        mensaje = 'Waiting that finish Unzip process'
         logger.info(mensaje)
         await message.edit(mensaje)
-        proc = await asyncio.create_subprocess_shell(
-            cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE)
-        # end_time_short = time.strftime('%H:%M', time.localtime())
-        # mensaje = 'Decompressing... %s' % (end_time_short)
-        # logger.info(mensaje)
-        # await message.edit(mensaje)
-        # # Extract the contents of the archive
-        # compressed_file.extractall(_path)
-        stdout, stderr = await proc.communicate()
-        end_time_short = time.strftime('%H:%M', time.localtime())
+    logger.info("Pre Semaphore")
+    async with semaphoreZIP:
+        try:
+            mensaje = 'Is RAR compressed file %s [%s] => [%s]' % (end_time, file_name, final_path)
+            logger.info(mensaje)
+            path_compressed_file = await decide_format_compresed_firts_file(final_path, file_name, pattern_part, template_part)
         
-        if proc.returncode == 0:
-            mensaje = 'Decompressing OK %s [%s]' % (end_time_short, path_compressed_file)
-            mensaje = mensaje + '\n' + stdout.decode()
-            logger.info(mensaje)
-            await message.edit(mensaje)
-            time.sleep(5)
-            return True
-        else:
-            mensaje = 'Decompressing KO %s [%s]' % (end_time_short, path_compressed_file)
-            mensaje = mensaje + '\n' + stderr.decode()
-            logger.info(mensaje)
-            await message.edit(mensaje)
-            time.sleep(5)
-            return False
-        end_time_short = time.strftime('%H:%M', time.localtime())
-        mensaje = 'Done UNRAR file: '
-        
-        await update.reply(mensaje)
-        return True
-    except Exception as e:
-        logger.critical(e)
-        logger.info('[EXCEPTION]: %s' % (str(e)))
-        logger.info('[%s] EXCEPTION RAR %s' % (file_name, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime())))
-        return False
-async def unzip(_path, final_path, file_name, end_time, message, pattern_part, template_part, update):
-    try:
-        mensaje = 'Is ZIP compressed file %s [%s] => [%s]' % (end_time, file_name, final_path)
-        logger.info(mensaje)
-        path_compressed_file = await decide_format_compresed_firts_file(final_path, file_name, pattern_part, template_part)
-        end_time_short = time.strftime('%H:%M', time.localtime())
-        mensaje = 'Validate compressed file... %s [%s]' % (end_time_short, path_compressed_file)
-        logger.info(mensaje)
-        await message.edit(mensaje)
-        cmd = f'7zz t {path_compressed_file}'
-        logger.info(cmd)
-        proc = await asyncio.create_subprocess_shell(
-            cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE)
-
-        stdout, stderr = await proc.communicate()
-
-        end_time_short = time.strftime('%H:%M', time.localtime())
-        if proc.returncode == 0:
-            mensaje = 'VALIDATION OK %s [%s]' % (end_time_short, path_compressed_file)
-            mensaje = mensaje + '\n' + stdout.decode()
-            logger.info(mensaje)
-            await message.edit(mensaje)
-
+            cmd = f'cd {_path} && unrar x -o+ \'{os.path.basename(path_compressed_file)}\''
+            logger.info(cmd)
             end_time_short = time.strftime('%H:%M', time.localtime())
             mensaje = 'Decompressing... %s' % (end_time_short)
+            compressed_file = rarfile.RarFile(path_compressed_file)
+            files_compressed = compressed_file.namelist()
+            # Print rar files
+            for file_compressed in files_compressed:
+                mensaje += '\n' + file_compressed
+            # Close the archive
+            compressed_file.close() 
             logger.info(mensaje)
             await message.edit(mensaje)
-            # Extract the contents of the archive
-            cmd = f'cd {_path} && 7zz x {path_compressed_file}'
-            logger.info(cmd)
             proc = await asyncio.create_subprocess_shell(
                 cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE)
-
+            # end_time_short = time.strftime('%H:%M', time.localtime())
+            # mensaje = 'Decompressing... %s' % (end_time_short)
+            # logger.info(mensaje)
+            # await message.edit(mensaje)
+            # # Extract the contents of the archive
+            # compressed_file.extractall(_path)
             stdout, stderr = await proc.communicate()
             end_time_short = time.strftime('%H:%M', time.localtime())
-           
+        
             if proc.returncode == 0:
                 mensaje = 'Decompressing OK %s [%s]' % (end_time_short, path_compressed_file)
                 mensaje = mensaje + '\n' + stdout.decode()
@@ -244,17 +191,82 @@ async def unzip(_path, final_path, file_name, end_time, message, pattern_part, t
                 await message.edit(mensaje)
                 time.sleep(5)
                 return False
-        else: 
-            mensaje = 'VALIDATION KO %s [%s]' % (end_time_short, path_compressed_file)
-            mensaje = mensaje + '\n' + stderr.decode()
+            end_time_short = time.strftime('%H:%M', time.localtime())
+            mensaje = 'Done UNRAR file: '
+        
+            await update.reply(mensaje)
+            return True
+        except Exception as e:
+            await proccessError(exception = e, telethonMessage = message, title = '[%s] EXCEPTION RAR %s' % (file_name, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime())), replyTO = message)
+            return False
+async def unzip(_path, final_path, file_name, end_time, message, pattern_part, template_part, update):
+    if semaphoreZIP.locked():
+        mensaje = 'Waiting that finish Unzip process' % (end_time, file_name, final_path)
+        await message.edit(mensaje)
+        time.sleep(5)
+    async with semaphoreZIP:
+        try:
+            mensaje = 'Is ZIP compressed file %s [%s] => [%s]' % (end_time, file_name, final_path)
+            logger.info(mensaje)
+            path_compressed_file = await decide_format_compresed_firts_file(final_path, file_name, pattern_part, template_part)
+            end_time_short = time.strftime('%H:%M', time.localtime())
+            mensaje = 'Validate compressed file... %s [%s]' % (end_time_short, path_compressed_file)
             logger.info(mensaje)
             await message.edit(mensaje)
+            cmd = f'7zz t {path_compressed_file}'
+            logger.info(cmd)
+            proc = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE)
+
+            stdout, stderr = await proc.communicate()
+
+            end_time_short = time.strftime('%H:%M', time.localtime())
+            if proc.returncode == 0:
+                mensaje = 'VALIDATION OK %s [%s]' % (end_time_short, path_compressed_file)
+                mensaje = mensaje + '\n' + stdout.decode()
+                logger.info(mensaje)
+                await message.edit(mensaje)
+
+                end_time_short = time.strftime('%H:%M', time.localtime())
+                mensaje = 'Decompressing... %s' % (end_time_short)
+                logger.info(mensaje)
+                await message.edit(mensaje)
+                # Extract the contents of the archive
+                cmd = f'cd {_path} && 7zz x {path_compressed_file}'
+                logger.info(cmd)
+                proc = await asyncio.create_subprocess_shell(
+                    cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE)
+
+                stdout, stderr = await proc.communicate()
+                end_time_short = time.strftime('%H:%M', time.localtime())
+           
+                if proc.returncode == 0:
+                    mensaje = 'Decompressing OK %s [%s]' % (end_time_short, path_compressed_file)
+                    mensaje = mensaje + '\n' + stdout.decode()
+                    logger.info(mensaje)
+                    await message.edit(mensaje)
+                    time.sleep(5)
+                    return True
+                else:
+                    mensaje = 'Decompressing KO %s [%s]' % (end_time_short, path_compressed_file)
+                    mensaje = mensaje + '\n' + stderr.decode()
+                    logger.info(mensaje)
+                    await message.edit(mensaje)
+                    time.sleep(5)
+                    return False
+            else: 
+                mensaje = 'VALIDATION KO %s [%s]' % (end_time_short, path_compressed_file)
+                mensaje = mensaje + '\n' + stderr.decode()
+                logger.info(mensaje)
+                await message.edit(mensaje)
+                return False
+        except Exception as e:
+            await proccessError(exception = e, telethonMessage = message, title = '[%s] EXCEPTION ZIP %s' % (file_name, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime())))
             return False
-    except Exception as e:
-        logger.critical(e)
-        logger.info('[EXCEPTION]: %s' % (str(e)))
-        logger.info('[%s] EXCEPTION ZIP %s' % (file_name, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime())))
-        return False
 
 async def delete_compress_files(_path, file_name, pattern_part):
     logger.info('MAINTENANCE - Delete compress files')
@@ -338,9 +350,7 @@ async def getTrackerList(update):
         response = requests.get(url)
         trackers = response.text
     except Exception as e:
-        errorMessage = 'ERROR: %s GETTING TRACKERS ONLINE YT: %s' % (e.__class__.__name__, str(e));
-        logger.info(errorMessage)
-        message = await update.reply(errorMessage)
+        await proccessError(exception = e, telethonMessage = message, title = "ERROR: %s GETTING TRACKERS ONLINE YT", replyTO = update)
     return Trackers(message, trackers) 
 
 async def torrent(update, command, CID, image, serie_id):
@@ -376,7 +386,6 @@ async def torrent(update, command, CID, image, serie_id):
         await sonarr_put_serie_tag_uploaded(serie_id)
 
     await tg_send_message("---Resume torrents---")
-    #await update.reply("---Resume torrents---")
     firtsFile = True
     for fileNamePath in createdTorrents:
         if firtsFile == True:
@@ -429,9 +438,7 @@ async def worker(name):
                 queue.task_done()
                 continue
             except Exception as e:
-                logger.info('ERROR: %s DOWNLOADING YT: %s' % (e.__class__.__name__, str(e)))
-                await message.edit('Error!')
-                message = await message.edit('ERROR: %s DOWNLOADING YT: %s' % (e.__class__.__name__, str(e)))
+                await proccessError(exception = e, telethonMessage = message, title = "DOWNLOADING YT", replyTO = update)
                 queue.task_done()
                 continue
         else:
@@ -490,6 +497,7 @@ async def worker(name):
                 unrar_result = await unrar(_path, final_path, file_name, end_time, message, pattern_part, template_part, update)
                 if unrar_result:
                     await delete_compress_files(_path, file_name, pattern_part)
+                    await ask_to_move(_path)
             # ZIP
             logger.info('zip')
             pattern_part = r"zip\.\d{1,4}"
@@ -502,7 +510,7 @@ async def worker(name):
                 if unzip_result:
                     logger.info('zip3')
                     await delete_compress_files(_path, file_name, pattern_part)
-                 
+                    await ask_to_move(_path)
             ######
             mensaje = 'DOWNLOAD FINISHED %s [%s] => [%s]' % (end_time, file_name, final_path)
             logger.info(mensaje)
@@ -512,62 +520,112 @@ async def worker(name):
             await message.edit('Error!')
             message = await update.reply('ERROR: Time exceeded downloading this file')
         except Exception as e:
-            logger.critical(e)
-            logger.info('[EXCEPCION]: %s' % (str(e)))
-            logger.info('[%s] Excepcion %s' % (file_name, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime())))
-            await message.edit('Error!')
-            message = await update.reply('ERROR: %s downloading : %s' % (e.__class__.__name__, str(e)))
+            await proccessError(exception = e, telethonMessage = message, title = filename, replyTO =  update)
             
-        # Unidad de trabajo terminada.
-        queue.task_done()
+    # Unidad de trabajo terminada.
+    queue.task_done()
+
+async def proccessError(exception, telethonMessage, title, replyTO = None):
+    logger.critical(exception)
+    message = '[EXCEPCION: %s] [%s] [Classname: %s] [Exception: %s]' % (title, time.strftime('%d/%m/%Y %H:%M:%S', time.localtime()), exception.__class__.__name__, str(exception))
+    logger.info(message)
+    await telethonMessage.edit('Error!')
+    if (replyTO is not None):
+        telethonMessage = await replyTO.reply(message)
+    else:
+        tg_send_message(message)
 
 client = TelegramClient(session, api_id, api_hash, proxy = None, request_retries = 10, flood_sleep_threshold = 120)
 # Callback data
 
 ONE = "telethonresponseone_"
 TWO = "telethonresponsetwo_"
+THREE = "telethonresponsethree_"  
+
 serie = Serie(0, "", "", "")
 #ONE Buttons Results search:
 @client.on(events.CallbackQuery(pattern="^"+ONE))
 async def callback(event):
-    id = event.data.decode(encoding='utf-8').replace(ONE, "")
-    await event.edit('Getting serie id: ''{}'''.format(id))
-    result = await sonarr_get_serie(id)
-    serie.id=result.id;
-    serie.path=result.path;
-    serie.names=result.names;
-    serie.image=result.image;
-    if len(serie.names)==1:
-        # Fix: Path is better than name, because name contains forbiden characters 
-        await createTorrentAfterQuestions(serie.path)
-        return True
+    try:
+        id = event.data.decode(encoding='utf-8').replace(ONE, "")
+        await event.edit('Getting serie id: ''{}'''.format(id))
+        result = await sonarr_get_serie(id)
+        serie.id=result.id;
+        serie.path=result.path;
+        serie.names=result.names;
+        serie.image=result.image;
+        if len(serie.names)==1:
+            # Fix: Path is better than name, because name contains forbiden characters 
+            await createTorrentAfterQuestions(serie.path)
+            return True
 
-    buttons = [
-        [Button.inline(text = serie.names[i], data = TWO + str(i))] for i in range(1,len(serie.names))
-    ]
-    await client.send_message(usuarios[0], 'Choose spanish title:', buttons = buttons)
+        buttons = [
+            [Button.inline(text = serie.names[i], data = TWO + str(i))] for i in range(0,len(serie.names))
+        ]
+        await client.send_message(usuarios[0], 'Choose spanish title:', buttons = buttons)
+    except Exception as e:
+        await proccessError(exception = e, telethonMessage = event, title = 'EXCEPTION Create torrent after questions: %s %s' % (str(e), str(traceback.print_exc())))
     return True
 
 #TWO Buttons choose spanish title:
 @client.on(events.CallbackQuery(pattern="^"+TWO))
 async def callback(event):
-    serieTitlePosition = event.data.decode(encoding='utf-8').replace(TWO, "")
-    spanishTitle = serie.names[int(serieTitlePosition)]
-    await event.edit('Chose: ''{}'''.format(spanishTitle))
-    await createTorrentAfterQuestions(spanishTitle)
+    try:
+        serieTitlePosition = int(event.data.decode(encoding='utf-8').replace(TWO, ""))
+        spanishTitle = serie.names[serieTitlePosition]
+        await event.edit('Chose: ''{}'''.format(spanishTitle))
+        await createTorrentAfterQuestions(spanishTitle)
+    except Exception as e:
+        await proccessError(exception = e, telethonMessage = event, title = 'EXCEPTION Create torrent after questions: %s %s' % (str(e), str(traceback.print_exc())))
     return True
-    
+
+#THREE move files to peliculas:
+class FileAsk(object):
+    def __init__(self, id, path, name):
+        self.id = id
+        self.path = path
+        self.name = name
+        self.fullPath = self.path+'/'+self.name;
+
+@client.on(events.CallbackQuery(pattern="^"+THREE))
+async def callback(event):
+    try:
+        fileChose = int(event.data.decode(encoding='utf-8').replace(THREE, ""))
+        files_incoming_folder = await generate_list_file_move()
+        await event.edit("Moving file %s to %s" % (files_incoming_folder[fileChose].fullPath, PATH_PELICULAS))
+        shutil.move(files_incoming_folder[fileChose].fullPath, PATH_PELICULAS)
+        await event.edit("File %s moved to %s" % (files_incoming_folder[fileChose].fullPath, PATH_PELICULAS))
+    except Exception as e:
+        await proccessError(exception = e, telethonMessage = event, title = 'EXCEPTION Create torrent after questions: %s %s' % (str(e), str(traceback.print_exc())))
+    return True
+
+async def generate_list_file_move(path = PATH_COMPLETED):
+    files = os.listdir(path)
+    # Filtering only the files.
+    #files = [f for f in files if os.path.isfile(path+'/'+f)]
+    files = [y for x in os.walk(path) for y in glob(os.path.join(x[0], '*.*'))]
+
+    if len(files) == 0:
+         await tg_send_message("No files found")
+         return []
+    return [FileAsk(i, path, files[i].replace(path,"")) for i in range(0,len(files))]
+
+async def ask_to_move(path = PATH_COMPLETED):
+    files_incoming_folder = await generate_list_file_move(path)
+    if len(files_incoming_folder)==0:
+        return True
+    buttons = [
+        [Button.inline(text = file_ask.name, data = THREE + str(file_ask.id))] for file_ask in files_incoming_folder
+    ]
+    await tg_send_message("/move")
+    await client.send_message(usuarios[0], 'Any file to /Peliculas?', buttons = buttons)
+
 async def createTorrentAfterQuestions(spanishTitle):
     commandValue = serie.path + "," + spanishTitle
     message = await client.send_message(usuarios[0], "/t " + commandValue)
-    try:
-        real_id = get_peer_id(message.peer_id)
-        CID , peer_type = resolve_id(real_id)
-        await torrent(message, commandValue, CID, serie.image, serie.id)
-    except Exception as e:
-        message = await message.reply('ERROR: ' + str(e) + "\n" + str(traceback.print_exc()))
-        logger.info('EXCEPTION USER: %s %s', str(e), str(traceback.print_exc()))
-    return True
+    real_id = get_peer_id(message.peer_id)
+    CID , peer_type = resolve_id(real_id)
+    await torrent(message, commandValue, CID, serie.image, serie.id)
 
 @events.register(events.NewMessage)
 async def handler(update):
@@ -624,7 +682,7 @@ async def handler(update):
                 time.sleep(2)
                 if update.message.message.startswith("/t"):
                     command = update.message.message.replace("/t ", "")
-                    torrent(update, command, CID, "", 0)
+                    await torrent(update, command, CID, "", 0)
                 elif update.message.message.startswith("/sonarr"):
                     command = update.message.message.replace("/sonarr ", "")
                     series = await sonarr_search(command, client, usuarios)
@@ -636,6 +694,8 @@ async def handler(update):
                     ]      
 
                     await client.send_message(usuarios[0], 'Search results:', buttons = buttons)
+                elif update.message.message.startswith("/move"):
+                    await ask_to_move()
                 elif '/folder' in update.message.message:
                     folder = update.message.message
                     FOLDER_GROUP = update.message.date
@@ -675,12 +735,7 @@ async def handler(update):
             logger.info('UNAUTHORIZED USER: %s ', CID)
             message = await update.reply('UNAUTHORIZED USER: %s \n add this ID to TG_AUTHORIZED_USER_ID' % CID)
     except Exception as e:
-        message = await update.reply('ERROR: ' + str(e) + "\n" + str(traceback.print_exc()))
-        logger.info('EXCEPTION USER: %s %s', str(e), str(traceback.print_exc()))
-
-
-
-
+        await proccessError(exception = e, telethonMessage = message, title = 'EXCEPTION USER: %s %s' % (str(e), str(traceback.print_exc())), replyTO = update)
 
 if __name__ == '__main__':
 
